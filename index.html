@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>NIGHT DRIVE // Neon District</title>
+<style>
+  :root{
+    --cyan:#2fe6ff; --magenta:#ff3fb0; --amber:#ffb23e; --ok:#7dffb0;
+    --panel:rgba(8,10,18,0.72); --panelBorder:rgba(120,220,255,0.28);
+    --ink:#dff4ff;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:'Segoe UI',Rajdhani,sans-serif;color:var(--ink);user-select:none;}
+  #app{position:relative;width:100vw;height:100vh;}
+  canvas#scene{display:block;width:100%;height:100%;}
+  canvas#minimap{position:absolute;top:16px;right:16px;width:160px;height:160px;
+    background:rgba(6,8,14,0.6); border:2px solid var(--panelBorder); border-radius:50%;
+    box-shadow:0 0 18px rgba(0,0,0,0.5), 0 0 0 3px rgba(4,6,10,0.8);
+  }
+  .panel{
+    background:var(--panel); border:1px solid var(--panelBorder);
+    clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+    padding:10px 16px;
+  }
+  #hud{position:absolute;inset:0;pointer-events:none;}
+  .topleft{position:absolute; top:16px; left:16px; display:flex; gap:10px;}
+  .stat-label{font-size:10px;letter-spacing:2px;color:rgba(223,244,255,0.5);}
+  .stat-val{font-size:22px;font-weight:700;}
+  #cashVal{color:var(--ok); text-shadow:0 0 10px rgba(125,255,176,0.6);}
+  #speedVal{color:var(--cyan); text-shadow:0 0 10px rgba(47,230,255,0.6);}
+
+  #radioPanel{position:absolute; top:16px; left:50%; transform:translateX(-50%);
+    display:flex; align-items:center; gap:10px; min-width:220px; justify-content:center;}
+  #radioName{font-weight:700; letter-spacing:1px; color:var(--amber); text-shadow:0 0 8px rgba(255,178,62,0.6); font-size:14px;}
+  #radioTip{font-size:10px; color:rgba(223,244,255,0.45); letter-spacing:1px;}
+
+  #missionPanel{position:absolute; bottom:16px; left:16px; max-width:300px;}
+  #missionTitle{font-size:12px; letter-spacing:2px; color:var(--magenta);}
+  #missionDesc{font-size:15px; margin-top:2px; line-height:1.4;}
+  #missionTimer{font-size:24px; font-weight:700; margin-top:4px; color:var(--amber);}
+
+  #promptPanel{position:absolute; bottom:16px; left:50%; transform:translateX(-50%);
+    font-size:13px; letter-spacing:1px; display:none;}
+  #promptPanel.show{display:block;}
+  kbd{background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.3); border-radius:4px; padding:1px 7px; margin:0 3px; font-weight:700;}
+
+  #boostWrap{position:absolute; bottom:16px; right:16px; width:180px;}
+  .meterTrack{height:8px; border-radius:2px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.18); overflow:hidden; margin-top:4px;}
+  #boostFill{height:100%;width:0%;background:linear-gradient(90deg,#7c5cff,var(--cyan));box-shadow:0 0 10px var(--cyan);}
+  .boostReady #boostFill{background:linear-gradient(90deg,var(--amber),var(--magenta));box-shadow:0 0 12px var(--magenta);}
+
+  #toast{position:absolute; top:80px; left:50%; transform:translateX(-50%); font-size:14px; font-weight:700; opacity:0; transition:opacity 0.3s; letter-spacing:1px;}
+
+  #garageHint{position:absolute; bottom:64px; right:16px; font-size:10px; letter-spacing:1px; color:rgba(223,244,255,0.55); pointer-events:none;}
+  #garagePanel{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(3,4,8,0.82); pointer-events:auto; z-index:5;}
+  #garageBox{width:min(480px,92vw); max-height:80vh; overflow:auto;}
+  #garageBox h2{margin:0 0 4px; font-size:18px; letter-spacing:3px; color:var(--cyan);}
+  #garageCash{font-size:12px; color:var(--ok); margin-bottom:12px;}
+  .garageRow{display:flex; flex-direction:column; gap:2px; padding:10px 14px; margin-bottom:8px;
+    background:rgba(255,255,255,0.04); border:1px solid rgba(120,220,255,0.18); border-radius:4px; cursor:pointer;}
+  .garageRow:hover{background:rgba(120,220,255,0.1);}
+  .garageRow.active{border-color:var(--ok); background:rgba(125,255,176,0.08); cursor:default;}
+  .garageRow.locked{opacity:0.75;}
+  .garageRow.locked:hover{opacity:1;}
+  .garageName{font-weight:700; font-size:14px; letter-spacing:1px;}
+  .garageName .tag{font-size:9px; color:var(--ok); border:1px solid var(--ok); border-radius:3px; padding:1px 5px; margin-left:6px;}
+  .garageStat{font-size:11px; color:rgba(223,244,255,0.6);}
+  .garageAction{font-size:11px; font-weight:700; color:var(--amber); margin-top:2px;}
+  #garageClose{margin-top:6px;}
+
+  .overlay{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:16px;
+    background:radial-gradient(ellipse at 50% 30%, rgba(30,10,40,0.9), rgba(3,4,8,0.96)); text-align:center; padding:24px; pointer-events:auto;}
+  .hidden{display:none !important;}
+  .title{font-size:clamp(34px,6vw,58px); font-weight:800; letter-spacing:8px; margin:0; color:#fff;
+    text-shadow:0 0 20px var(--cyan), 0 0 46px var(--magenta);}
+  .title em{font-style:normal; color:var(--magenta); text-shadow:0 0 20px var(--magenta), 0 0 46px var(--magenta);}
+  .subtitle{max-width:460px; color:rgba(223,244,255,0.65); font-size:14px; line-height:1.7; letter-spacing:0.3px;}
+  .btn{pointer-events:auto; font-family:inherit; font-size:16px; font-weight:700; letter-spacing:3px; color:#04060a;
+    background:linear-gradient(90deg,var(--cyan),#7c5cff); border:none; padding:14px 40px;
+    clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);
+    cursor:pointer; box-shadow:0 0 26px rgba(47,230,255,0.45);}
+  .btn:active{transform:scale(0.97);}
+  .keyrow{display:flex; gap:20px; flex-wrap:wrap; justify-content:center; margin-top:4px;}
+  .key{display:flex; flex-direction:column; align-items:center; gap:5px; font-size:10px; color:rgba(223,244,255,0.55); letter-spacing:1px;}
+  .keycap{min-width:30px;padding:4px 8px;border:1px solid rgba(223,244,255,0.3);border-radius:5px;background:rgba(255,255,255,0.05);color:#fff;font-weight:700;font-size:12px;}
+  #loadingLine{font-size:12px; letter-spacing:2px; color:var(--cyan);}
+  .statline{font-size:13px;color:rgba(223,244,255,0.7);}
+  .statline b{color:var(--ok);}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <canvas id="minimap" width="300" height="300"></canvas>
+
+  <div id="hud">
+    <div class="topleft">
+      <div class="panel"><div class="stat-label">CASH</div><div class="stat-val" id="cashVal">$0</div></div>
+      <div class="panel"><div class="stat-label">SPEED KM/H</div><div class="stat-val" id="speedVal">0</div></div>
+      <div class="panel"><div class="stat-label">TIME [T] <span id="timeMode" style="color:var(--amber);">AUTO</span></div><div class="stat-val" id="timeLabel" style="font-size:16px;">NIGHT</div></div>
+    </div>
+
+    <div class="panel" id="radioPanel">
+      <div>
+        <div id="radioName">RADIO OFF</div>
+        <div id="radioTip">[R] next station · [M] off</div>
+      </div>
+    </div>
+
+    <div class="panel hidden" id="missionPanel">
+      <div id="missionTitle">JOB</div>
+      <div id="missionDesc"></div>
+      <div id="missionTimer"></div>
+    </div>
+
+    <div class="panel" id="promptPanel"></div>
+
+    <div id="boostWrap" class="panel">
+      <div class="stat-label">NOS</div>
+      <div class="meterTrack"><div id="boostFill"></div></div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="garageHint">[G] GARAGE</div>
+  </div>
+
+  <div class="overlay hidden" id="garagePanel">
+    <div class="panel" id="garageBox">
+      <h2>GARAGE</h2>
+      <div id="garageCash"></div>
+      <div id="garageList"></div>
+      <button class="btn" id="garageClose" style="font-size:12px;padding:8px 24px;">CLOSE</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="startScreen">
+    <h1 class="title">NIGHT <em>DRIVE</em></h1>
+    <p class="subtitle">Welcome to the Neon Quarter. Pick a car from the garage plaza, take jobs from the fixer for cash, and don't scrape the paint. Real reflections, real radio, real night.</p>
+    <div id="loadingLine">loading district…</div>
+    <button class="btn hidden" id="startBtn">TURN THE KEY</button>
+    <div class="keyrow">
+      <div class="key"><div class="keycap">W A S D</div>DRIVE</div>
+      <div class="key"><div class="keycap">SHIFT</div>HANDBRAKE</div>
+      <div class="key"><div class="keycap">SPACE</div>NOS BOOST</div>
+      <div class="key"><div class="keycap">E</div>SWITCH CAR</div>
+      <div class="key"><div class="keycap">G</div>GARAGE</div>
+      <div class="key"><div class="keycap">R</div>RADIO</div>
+      <div class="key"><div class="keycap">M</div>RADIO OFF</div>
+      <div class="key"><div class="keycap">T</div>DAY/NIGHT</div>
+    </div>
+    <p style="font-size:10px; color:rgba(223,244,255,0.35); max-width:480px; margin-top:10px; line-height:1.6;">
+      Cars &amp; buildings: Kenney (kenney.nl), CC0. Sky: Poly Haven, CC0. Music: 16 tracks released free via NoCopyrightSounds (NCS) — Recall (Gabriawll), Fearless pt.II (TULE + Chris Linton), Heroes (RetroVision), Invincible (DEAF KEV), Unstoppable (JOXION + Thorne + iFeature), Legends (Star Party), Adventure (JJD), Fly (Fransis Derelle + Parker Polhill), Alive (Itro + Kontinuum), Fire (Brook Xiao + Rachel Horter), Warrior (Marin Hoxha + Maestro Chives + Chris Linton), Diamond (NIVIRO), Dreams (Lost Sky), Wildfire (Jim Yosef + Sara Skinner), Vibe (Ash O'Connor), Energy (Elektronomia) — all NCS Releases, free to use with credit. Tire squeal: Tom Haigh (CC-BY 3.0). Engine loop: domasx2 (CC0). Via opengameart.org and ncs.io.
+    </p>
+  </div>
+
+  <div class="overlay hidden" id="pauseHint"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/RGBELoader.js"></script>
+
+<!-- Embedded CC0/NCS asset data (base64), kept separate from game logic -->
+<script src="assets/data/textures_data.js"></script>
+<script src="assets/data/media_data.js"></script>
+
+<!-- Game logic, split into modules. Plain classic scripts (not ES modules)
+     so every file shares one global scope and load order below is the
+     dependency order — see README.md for the module map. -->
+<script src="src/environment.js"></script>
+<script src="src/city.js"></script>
+<script src="src/cars.js"></script>
+<script src="src/traffic.js"></script>
+<script src="src/audio.js"></script>
+<script src="src/gameplay.js"></script>
+<script src="src/physics.js"></script>
+<script src="src/hud.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
